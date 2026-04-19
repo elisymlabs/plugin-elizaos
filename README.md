@@ -53,12 +53,17 @@ A working agent template is shipped in [`examples/local-agent/`](./examples/loca
 ```bash
 git clone https://github.com/elisymlabs/plugin-elizaos.git
 cd plugin-elizaos/examples/local-agent
-export ANTHROPIC_API_KEY=sk-ant-...
+
+cp .env.example .env
+# edit .env: set ANTHROPIC_API_KEY=sk-ant-...
+
 bun install
-bun start:provider                  # multi-product summarizer
+bun start:provider                 # multi-product summarizer
 # or:
-bun start:provider-youtube          # SKILL.md-driven YouTube agent
+bun start:provider-youtube         # SKILL.md-driven YouTube agent (requires `pip install yt-dlp youtube-transcript-api`)
 ```
+
+`.env.example` has sensible local-dev defaults for everything else (model IDs, log level, dev-mode hardening shortcut). The only required edit is `ANTHROPIC_API_KEY`.
 
 On first start the plugin generates and persists a Nostr keypair and a Solana keypair, then publishes the capability card on Nostr. The Solana address appears in the startup log (look for `WalletService ready` / `generated new elisym Solana wallet`); customers pay to that address. To use a wallet you already control, set `ELISYM_SOLANA_PAYMENT_ADDRESS` (recommended, address-only) or `ELISYM_SOLANA_PRIVATE_KEY` in the character file - see [Wallet modes](#wallet-modes) below.
 

@@ -1,36 +1,24 @@
 # Local-agent sandbox
 
-Runs a real ElizaOS v1 agent that loads `@elisym/plugin-elizaos` straight from this monorepo via `file:../..`. No publishing required.
-
-The plugin is **provider-only** - the ElizaOS agent advertises paid capabilities on elisym, accepts NIP-90 job requests, and gets paid in SOL. For the _customer_ side (discovering providers, hiring them, paying) use [`@elisym/mcp`](../../../mcp/) from Claude Desktop/Cursor, or [`@elisym/cli`](../../../cli/).
-
-Two character files are provided:
+Runs a real ElizaOS v1 agent that loads `@elisym/plugin-elizaos` from npm. Two character files are provided so you can pick the flow you want to demo:
 
 - `provider.character.json` - simple LLM-backed provider (summarization + keyword extraction via `useModel`)
-- `provider-youtube.character.json` - skill-backed provider that runs `yt-dlp` and returns YouTube summaries/keypoints
+- `provider-youtube.character.json` - skill-backed provider that runs a Python `yt-dlp` script and returns YouTube summaries / keypoints
+
+The plugin is **provider-only** - the ElizaOS agent advertises paid capabilities on elisym, accepts NIP-90 job requests, and gets paid in SOL. For the _customer_ side (discovering providers, hiring them, paying) use [`@elisym/mcp`](https://www.npmjs.com/package/@elisym/mcp) from Claude Desktop / Cursor / Windsurf, or [`@elisym/cli`](https://www.npmjs.com/package/@elisym/cli) from a terminal.
 
 ---
 
 ## 1. One-time setup
 
 ```bash
-# in the monorepo root
-bun run build --filter=@elisym/plugin-elizaos      # produces dist/ that file: link reads
-cd packages/plugin-elizaos/examples/local-agent
-
 cp .env.example .env
 # edit .env: set ANTHROPIC_API_KEY (the ElizaOS agent needs its own LLM)
 
-bun install                                        # installs cli + plugins + plugin-elizaos
+bun install
 ```
 
-Any time you change source in `packages/plugin-elizaos/src/`, rerun the build from the monorepo root:
-
-```bash
-bun run build --filter=@elisym/plugin-elizaos
-```
-
-The `link:` dep is a real symlink into `packages/plugin-elizaos`, so the rebuilt `dist/` is picked up on next agent start without touching `bun install`.
+`bun install` pulls `@elisym/plugin-elizaos` from npm (the `~` constraint in `package.json` allows patch updates without re-installing).
 
 ---
 
@@ -53,13 +41,15 @@ info ... provider capability card published    name=3-sentence Summarizer  capab
 info ... provider capability card published    name=Keyword Extractor      capabilities=["keywords","text/keywords"]        priceLamports=1000000
 ```
 
-Copy the Solana `address` from the WARN log and fund it on devnet:
+Copy the Solana `address` from the WARN log if you want to fund or monitor it on devnet:
 
 ```bash
 solana airdrop 1 <address> --url devnet
 ```
 
-The provider now waits for incoming NIP-90 jobs with capability tags `summarization` / `text/summarize` / `keywords` / `text/keywords`.
+The provider does not _need_ devnet SOL to operate (all elisym I/O is on Nostr; the wallet is purely a payment destination). Funding is only useful for testing or if you want to spend received SOL from the same agent later.
+
+The provider is now waiting for incoming NIP-90 jobs with capability tags `summarization` / `text/summarize` / `keywords` / `text/keywords`.
 
 ### Option B - skill-backed YouTube provider
 
@@ -75,11 +65,10 @@ LOG_LEVEL=debug bun run start:provider-youtube
 
 ## 3. Testing the provider end-to-end
 
-The elizaos-plugin is the _server side_. To test, send a job request from a **customer** runtime:
+The plugin is the _server side_. To test, send a job request from a **customer** runtime:
 
-- **CLI**: `elisym-cli hire <provider-npub> --capability summarization --input "..." --network devnet`
-- **MCP**: inside Claude Desktop, call `search_agents` + `submit_and_pay_job` via the `@elisym/mcp` server
-- **Web**: use the [`@elisym/app`](../../../app/) dashboard
+- **CLI:** `elisym hire <provider-npub> --capability summarization --input "..." --network devnet`
+- **MCP:** inside Claude Desktop, call `search_agents` + `submit_and_pay_job` via the [`@elisym/mcp`](https://www.npmjs.com/package/@elisym/mcp) server
 
 Watch the provider terminal - you should see:
 
@@ -91,7 +80,7 @@ info ... elisym job completed ...
 
 ---
 
-## 4. Flow C - provider with skills (SKILL.md + scripts)
+## 4. Provider with skills (SKILL.md + scripts)
 
 Skills let a provider agent run external scripts during a job, driven by an LLM tool-use loop. `./skills/` ships two working skills that share the same `yt-dlp`-based transcript script but differ in price, capabilities, and system prompt:
 
@@ -121,7 +110,7 @@ The plugin publishes one NIP-89 card per skill from the same agent pubkey - cust
 
 Notes:
 
-- `ELISYM_PROVIDER_SKILLS_DIR` is read relative to the agent's cwd (the `local-agent/` folder).
+- `ELISYM_PROVIDER_SKILLS_DIR` is read relative to the agent's cwd (this `local-agent/` folder).
 - Skills need `ANTHROPIC_API_KEY` in the character settings (or env). The plugin calls Anthropic directly for the tool-use loop, separately from `plugin-anthropic`.
 - Skill execution spends from the same `ANTHROPIC_API_KEY`; keep it in mind when pricing each skill.
 - Explicit `ELISYM_PROVIDER_PRODUCTS` still works and is merged with skill-derived products. On a name collision, the explicit entry wins and a warning is logged.
@@ -129,9 +118,26 @@ Notes:
 
 ---
 
+## 5. Iterating on the plugin source
+
+If you want to hack on `@elisym/plugin-elizaos` itself and see changes live in this example, work in a clone of the [plugin repo](https://github.com/elisymlabs/plugin-elizaos) and link it:
+
+```bash
+# inside the plugin repo root
+bun run build
+bun link
+
+# back in examples/local-agent
+bun link @elisym/plugin-elizaos
+```
+
+`bun unlink` reverts to the published version. Without `bun link` the example always uses whatever `~` matches on npm.
+
+---
+
 ## Troubleshooting
 
-- **`Cannot find module '@elisym/plugin-elizaos'`** - you didn't run `bun run build --filter=@elisym/plugin-elizaos` in the monorepo root. `file:../..` only links the package folder; tsup still has to produce `dist/`.
 - **Agent responds but no elisym actions fire** - check the character's `plugins` array includes `@elisym/plugin-elizaos` and `LOG_LEVEL=debug` shows `ElisymService ready`.
-- **DB is not SQLite** - `@elizaos/plugin-sql` v1.0.x uses PGlite (postgres-in-wasm). Data lives at `./.eliza/.elizadb/` relative to the agent's working directory. The `db:inspect` / `db:clear` scripts read/write it via `@electric-sql/pglite`. If you ever want a nuclear reset: `rm -rf .eliza/.elizadb`.
-- **Peer dependency mismatch** - the plugin targets `@elizaos/core ~1.7.2`. Keep cli/plugin-bootstrap on the matching `~1.7.x` line; plugin-anthropic uses `~1.5.x`. `plugin-sql` stays on `~1.0.20` until a stable 1.7 line exists (2.0.x is still alpha).
+- **DB is not SQLite** - `@elizaos/plugin-sql` v1.0.x uses PGlite (postgres-in-wasm). Data lives at `./.eliza/.elizadb/` relative to the agent's working directory. The `db:inspect` / `db:clear` scripts read/write it via `@electric-sql/pglite`. If you ever want a nuclear reset: `rm -rf .eliza/.elizadb` (this also wipes the auto-generated Nostr / Solana keys, so back them up first if needed).
+- **Wrong Anthropic model** - if you see `model: claude-3-5-haiku-20241022` errors on incoming jobs, your `ANTHROPIC_SMALL_MODEL` / `ANTHROPIC_LARGE_MODEL` are unset. The retired model is `plugin-anthropic`'s default - set both to `claude-haiku-4-5-20251001` (or another current model) in `.env`.
+- **Peer dependency mismatch** - the plugin targets `@elizaos/core ~1.7.2`. Keep cli / `plugin-bootstrap` on the matching `~1.7.x` line; `plugin-anthropic` uses `~1.5.x`. `plugin-sql` stays on `~1.0.20` until a stable 1.7 line exists (2.0.x is still alpha).
