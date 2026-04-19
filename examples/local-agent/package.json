@@ -11,7 +11,7 @@
     "db:clear": "bun run scripts/db-clear.ts"
   },
   "dependencies": {
-    "@elisym/plugin-elizaos": "workspace:*",
+    "@elisym/plugin-elizaos": "~0.3.0",
     "@elizaos/cli": "~1.7.2",
     "@elizaos/plugin-anthropic": "~1.5.12",
     "@elizaos/plugin-bootstrap": "~1.7.2",
