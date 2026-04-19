@@ -5,6 +5,7 @@ import { nip19 } from 'nostr-tools';
 import { z } from 'zod';
 import { logger } from './lib/logger';
 import { solToLamports } from './lib/pricing';
+import { isValidSolanaAddress } from './lib/solana';
 
 const HEX_64 = /^[0-9a-f]{64}$/i;
 
@@ -34,6 +35,12 @@ export const ElisymConfigSchema = z
       .regex(HEX_64, 'Nostr private key must be 32-byte hex')
       .optional(),
     solanaPrivateKeyBase58: z.string().min(1).optional(),
+    solanaPaymentAddress: z
+      .string()
+      .min(32)
+      .max(44)
+      .refine(isValidSolanaAddress, 'Solana address must decode to 32 bytes')
+      .optional(),
     signerKind: signerKindSchema,
     network: networkSchema,
     relays: z.array(z.string().url()).optional(),
@@ -82,6 +89,15 @@ export const ElisymConfigSchema = z
       message:
         'ELISYM_SIGNER_KIND must be "local" when ELISYM_SOLANA_PRIVATE_KEY is set; ' +
         'remove the key from config to use an external signer.',
+    },
+  )
+  .refine(
+    (cfg) => !(cfg.solanaPaymentAddress !== undefined && cfg.solanaPrivateKeyBase58 !== undefined),
+    {
+      message:
+        'ELISYM_SOLANA_PAYMENT_ADDRESS and ELISYM_SOLANA_PRIVATE_KEY are mutually exclusive: ' +
+        'pick one. Use the address-only mode (recommended) to keep the private key out of the agent ' +
+        'process; use the private-key mode if you want the plugin to manage the wallet directly.',
     },
   );
 
@@ -332,6 +348,7 @@ export function validateConfig(
   if (solanaPrivateKeyBase58) {
     validateSolanaKey(solanaPrivateKeyBase58);
   }
+  const solanaPaymentAddress = read('ELISYM_SOLANA_PAYMENT_ADDRESS');
 
   const network = read('ELISYM_NETWORK', 'devnet');
   const signerKind = read('ELISYM_SIGNER_KIND', 'local');
@@ -365,6 +382,7 @@ export function validateConfig(
   return ElisymConfigSchema.parse({
     nostrPrivateKeyHex,
     solanaPrivateKeyBase58,
+    solanaPaymentAddress,
     signerKind,
     network,
     relays: parseList(read('ELISYM_RELAYS')),

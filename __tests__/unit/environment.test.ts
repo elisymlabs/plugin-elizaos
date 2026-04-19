@@ -4,6 +4,7 @@ import { validateConfig } from '../../src/environment';
 
 const VALID_HEX = 'a'.repeat(64);
 const VALID_SOLANA = bs58.encode(new Uint8Array(64));
+const VALID_SOLANA_ADDRESS = bs58.encode(new Uint8Array(32));
 
 const NON_ELISYM_ENV_KEYS = ['SECRET_SALT', 'ELIZA_SERVER_AUTH_TOKEN'] as const;
 
@@ -176,6 +177,57 @@ describe('validateConfig', () => {
         }),
       ),
     ).toThrow();
+  });
+
+  describe('public-only payment address', () => {
+    it('accepts ELISYM_SOLANA_PAYMENT_ADDRESS without a private key', () => {
+      const cfg = envless(() =>
+        validateConfig({
+          ELISYM_NOSTR_PRIVATE_KEY: VALID_HEX,
+          ELISYM_SOLANA_PAYMENT_ADDRESS: VALID_SOLANA_ADDRESS,
+          ...MIN_PROVIDER,
+        }),
+      );
+      expect(cfg.solanaPaymentAddress).toBe(VALID_SOLANA_ADDRESS);
+      expect(cfg.solanaPrivateKeyBase58).toBeUndefined();
+    });
+
+    it('rejects ELISYM_SOLANA_PAYMENT_ADDRESS paired with ELISYM_SOLANA_PRIVATE_KEY', () => {
+      expect(() =>
+        envless(() =>
+          validateConfig({
+            ELISYM_NOSTR_PRIVATE_KEY: VALID_HEX,
+            ELISYM_SOLANA_PAYMENT_ADDRESS: VALID_SOLANA_ADDRESS,
+            ELISYM_SOLANA_PRIVATE_KEY: VALID_SOLANA,
+            ...MIN_PROVIDER,
+          }),
+        ),
+      ).toThrow(/mutually exclusive/);
+    });
+
+    it('rejects an invalid Solana address (wrong byte length)', () => {
+      expect(() =>
+        envless(() =>
+          validateConfig({
+            ELISYM_NOSTR_PRIVATE_KEY: VALID_HEX,
+            ELISYM_SOLANA_PAYMENT_ADDRESS: bs58.encode(new Uint8Array(16)),
+            ...MIN_PROVIDER,
+          }),
+        ),
+      ).toThrow();
+    });
+
+    it('rejects a non-base58 Solana address', () => {
+      expect(() =>
+        envless(() =>
+          validateConfig({
+            ELISYM_NOSTR_PRIVATE_KEY: VALID_HEX,
+            ELISYM_SOLANA_PAYMENT_ADDRESS: 'not-a-base58-address!!!@@@##',
+            ...MIN_PROVIDER,
+          }),
+        ),
+      ).toThrow();
+    });
   });
 
   describe('single-product vs PRODUCTS conflict', () => {

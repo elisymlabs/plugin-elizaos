@@ -51,7 +51,20 @@ export async function generateSolanaSecretBase58(): Promise<string> {
   return bs58.encode(bytes);
 }
 
-export async function getBalanceLamports(rpc: Rpc<SolanaRpcApi>, signer: Signer): Promise<bigint> {
-  const { value } = await rpc.getBalance(address(signer.address)).send();
+export async function getBalanceLamports(
+  rpc: Rpc<SolanaRpcApi>,
+  signerOrAddress: Signer | string,
+): Promise<bigint> {
+  const addr = typeof signerOrAddress === 'string' ? signerOrAddress : signerOrAddress.address;
+  const { value } = await rpc.getBalance(address(addr)).send();
   return BigInt(value);
+}
+
+export function isValidSolanaAddress(base58: string): boolean {
+  try {
+    const bytes = bs58.decode(base58);
+    return bytes.length === 32;
+  } catch {
+    return false;
+  }
 }

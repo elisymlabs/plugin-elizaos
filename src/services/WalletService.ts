@@ -14,6 +14,7 @@ export class WalletService extends Service {
 
   private signerRef?: Signer;
   private signerKindRef?: SignerKind;
+  private addressRef?: string;
   private rpcRef?: Rpc<SolanaRpcApi>;
   private rpcUrlRef?: string;
 
@@ -28,9 +29,20 @@ export class WalletService extends Service {
     this.rpcUrlRef = resolveRpcUrl(config.network, config.solanaRpcUrl);
     this.rpcRef = createRpc(this.rpcUrlRef);
 
+    if (config.solanaPaymentAddress) {
+      this.addressRef = config.solanaPaymentAddress;
+      this.signerKindRef = 'external';
+      logger.info(
+        { network: config.network, address: this.addressRef, mode: 'public-only' },
+        'WalletService ready (address-only mode; no private key in plugin)',
+      );
+      return;
+    }
+
     const handle = await this.resolveSigner(config.signerKind, config.solanaPrivateKeyBase58);
     this.signerRef = handle.signer;
     this.signerKindRef = handle.kind;
+    this.addressRef = handle.signer.address;
     if (handle.source === 'generated') {
       logger.warn(
         { network: config.network, address: handle.signer.address, kind: handle.kind },
@@ -62,9 +74,17 @@ export class WalletService extends Service {
 
   get signer(): Signer {
     if (!this.signerRef) {
-      throw new Error('WalletService not initialized');
+      throw new Error(
+        'WalletService is in address-only mode (ELISYM_SOLANA_PAYMENT_ADDRESS set); ' +
+          'no signer is available. Provider flow does not require Solana signing - ' +
+          'configure ELISYM_SOLANA_PRIVATE_KEY instead if you need outbound transactions.',
+      );
     }
     return this.signerRef;
+  }
+
+  get hasSigner(): boolean {
+    return this.signerRef !== undefined;
   }
 
   get signerKind(): SignerKind {
@@ -89,10 +109,13 @@ export class WalletService extends Service {
   }
 
   get address(): string {
-    return this.signer.address;
+    if (!this.addressRef) {
+      throw new Error('WalletService not initialized');
+    }
+    return this.addressRef;
   }
 
   async getBalance(): Promise<bigint> {
-    return getBalanceLamports(this.rpc, this.signer);
+    return getBalanceLamports(this.rpc, this.address);
   }
 }

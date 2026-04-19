@@ -87,7 +87,11 @@
       "ELISYM_SOLANA_PRIVATE_KEY": {
         "type": "string",
         "sensitive": true,
-        "description": "Base58-encoded 64-byte Solana secret key. If empty, plugin generates one on first start and persists it to agent memory."
+        "description": "Base58-encoded 64-byte Solana secret key. If empty (and ELISYM_SOLANA_PAYMENT_ADDRESS is also unset), plugin generates one on first start and persists it to agent memory. Mutually exclusive with ELISYM_SOLANA_PAYMENT_ADDRESS."
+      },
+      "ELISYM_SOLANA_PAYMENT_ADDRESS": {
+        "type": "string",
+        "description": "Recommended. Public Solana address (base58, 32 bytes) where customer payments are received. Use this to keep the private key out of the plugin process: the agent never signs Solana transactions, so a public address is enough. Mutually exclusive with ELISYM_SOLANA_PRIVATE_KEY."
       },
       "ELISYM_NETWORK": {
         "type": "string",
