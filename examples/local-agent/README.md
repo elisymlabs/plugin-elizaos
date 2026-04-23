@@ -61,6 +61,23 @@ pip install yt-dlp youtube-transcript-api
 LOG_LEVEL=debug bun run start:provider-youtube
 ```
 
+### Option C - skill-backed trending provider
+
+A second skill-backed flavor that advertises one capability (`trending` / `popular`) and scrapes GitHub Trending or a subreddit via a Python script. Uses `./skills-trending/` instead of `./skills/`, configured in `provider-trending.character.json` via `ELISYM_PROVIDER_SKILLS_DIR`.
+
+```bash
+pip install requests beautifulsoup4
+
+LOG_LEVEL=debug bun run start:provider-trending
+```
+
+Expected startup logs:
+
+```
+info ... loaded skills from directory    dir=.../skills-trending  count=1  skills=["trending"]
+info ... provider capability card published    name=trending  capabilities=["trending","popular"]  priceLamports=10000000
+```
+
 ---
 
 ## 3. Testing the provider end-to-end
