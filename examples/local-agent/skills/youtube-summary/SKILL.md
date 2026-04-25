@@ -4,7 +4,8 @@ description: YouTube summary agent. Send a link - get overview, key points, and 
 capabilities:
   - youtube-summary
   - video-analysis
-price: 0.002
+price: 0.01
+token: usdc
 max_tool_rounds: 15
 tools:
   - name: fetch_transcript

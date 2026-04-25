@@ -1,6 +1,7 @@
 ---
 name: trending
-price: 0.01
+price: 0.05
+token: usdc
 description: Trending agent. Ask for GitHub or Reddit trends - get a ranked list of top repos or posts
 capabilities:
   - trending

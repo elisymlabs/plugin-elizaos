@@ -4,7 +4,8 @@ description: Extract 5-7 key points from a YouTube video as a clean bullet list.
 capabilities:
   - youtube-keypoints
   - video-keypoints
-price: 0.0015
+price: 0.005
+token: usdc
 max_tool_rounds: 15
 tools:
   - name: fetch_transcript

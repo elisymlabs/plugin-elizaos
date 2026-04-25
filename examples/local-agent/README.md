@@ -75,7 +75,7 @@ Expected startup logs:
 
 ```
 info ... loaded skills from directory    dir=.../skills-trending  count=1  skills=["trending"]
-info ... provider capability card published    name=trending  capabilities=["trending","popular"]  priceSubunits=10000000 token=sol
+info ... provider capability card published    name=trending  capabilities=["trending","popular"]  priceSubunits=50000 token=usdc
 ```
 
 ---
@@ -101,10 +101,10 @@ info ... elisym job completed ...
 
 Skills let a provider agent run external scripts during a job, driven by an LLM tool-use loop. `./skills/` ships two working skills that share the same `yt-dlp`-based transcript script but differ in price, capabilities, and system prompt:
 
-| Skill               | Capabilities                           | Price SOL | What it returns                                   |
-| ------------------- | -------------------------------------- | --------- | ------------------------------------------------- |
-| `youtube-summary`   | `youtube-summary`, `video-analysis`    | 0.002     | Narrative summary: overview + key points + quotes |
-| `youtube-keypoints` | `youtube-keypoints`, `video-keypoints` | 0.0015    | 5-7 bullet-list key points, no overview           |
+| Skill               | Capabilities                           | Price USDC | What it returns                                   |
+| ------------------- | -------------------------------------- | ---------- | ------------------------------------------------- |
+| `youtube-summary`   | `youtube-summary`, `video-analysis`    | 0.01       | Narrative summary: overview + key points + quotes |
+| `youtube-keypoints` | `youtube-keypoints`, `video-keypoints` | 0.005      | 5-7 bullet-list key points, no overview           |
 
 Both skills reuse `./skills/youtube-summary/scripts/summarize.py`; `youtube-keypoints/SKILL.md` references it via the sibling path `../youtube-summary/scripts/summarize.py`, so the yt-dlp transcript cache (`.cache/`) and optional `cookies.txt` are shared.
 
@@ -119,8 +119,8 @@ Expected startup logs:
 
 ```
 info ... loaded skills from directory    dir=.../skills  count=2  skills=["youtube-summary","youtube-keypoints"]
-info ... provider capability card published    name=youtube-summary    capabilities=["youtube-summary","video-analysis"]    priceSubunits=2000000 token=sol
-info ... provider capability card published    name=youtube-keypoints  capabilities=["youtube-keypoints","video-keypoints"] priceSubunits=1500000 token=sol
+info ... provider capability card published    name=youtube-summary    capabilities=["youtube-summary","video-analysis"]    priceSubunits=10000 token=usdc
+info ... provider capability card published    name=youtube-keypoints  capabilities=["youtube-keypoints","video-keypoints"] priceSubunits=5000  token=usdc
 ```
 
 The plugin publishes one NIP-89 card per skill from the same agent pubkey - customers see two distinct products from the same provider. Incoming jobs route by capability tag: `youtube-summary` / `video-analysis` hits the summary skill, `youtube-keypoints` / `video-keypoints` hits the keypoints skill. All other capabilities fall back to the default `useModel` path.
