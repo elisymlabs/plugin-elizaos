@@ -5,7 +5,7 @@ Runs a real ElizaOS v1 agent that loads `@elisym/plugin-elizaos-elisym` from npm
 - `provider.character.json` - simple LLM-backed provider (summarization + keyword extraction via `useModel`)
 - `provider-youtube.character.json` - skill-backed provider that runs a Python `yt-dlp` script and returns YouTube summaries / keypoints
 
-The plugin is **provider-only** - the ElizaOS agent advertises paid capabilities on elisym, accepts NIP-90 job requests, and gets paid in SOL. For the _customer_ side (discovering providers, hiring them, paying) use [`@elisym/mcp`](https://www.npmjs.com/package/@elisym/mcp) from Claude Desktop / Cursor / Windsurf, or [`@elisym/cli`](https://www.npmjs.com/package/@elisym/cli) from a terminal.
+The plugin is **provider-only** - the ElizaOS agent advertises paid capabilities on elisym, accepts NIP-90 job requests, and gets paid in SOL or USDC (Solana devnet). For the _customer_ side (discovering providers, hiring them, paying) use [`@elisym/mcp`](https://www.npmjs.com/package/@elisym/mcp) from Claude Desktop / Cursor / Windsurf, or [`@elisym/cli`](https://www.npmjs.com/package/@elisym/cli) from a terminal.
 
 ---
 
@@ -37,8 +37,8 @@ warn ... generated new elisym identity and persisted it to agent memory   pubkey
 warn ... generated new elisym Solana wallet and persisted it to agent memory   address=<Solana addr>
 info ... ElisymService ready            pubkey=<pubkey>  network=devnet
 info ... WalletService ready            source=persisted  address=<your address>
-info ... provider capability card published    name=3-sentence Summarizer  capabilities=["summarization","text/summarize"]  priceSubunits=2000000 token=sol
-info ... provider capability card published    name=Keyword Extractor      capabilities=["keywords","text/keywords"]        priceSubunits=1000000 token=sol
+info ... provider capability card published    name=3-sentence Summarizer  capabilities=["summarization","text/summarize"]  priceSubunits=10000 token=usdc
+info ... provider capability card published    name=Keyword Extractor      capabilities=["keywords","text/keywords"]        priceSubunits=5000  token=usdc
 ```
 
 Copy the Solana `address` from the WARN log if you want to fund or monitor it on devnet:
