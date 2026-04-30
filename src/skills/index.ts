@@ -3,8 +3,23 @@ import type { Skill } from '@elisym/sdk/skills';
 export * from './types';
 export { loadSkillsFromDir } from './loader';
 export { ScriptSkill } from './scriptSkill';
-export { createAnthropicClient, createLlmClient, createOpenAIClient } from './llmClient';
+export {
+  createAnthropicClient,
+  createLlmClient,
+  createOpenAIClient,
+  verifyLlmApiKey,
+  verifyLlmApiKeyDeep,
+} from './llmClient';
 export type { LlmClientConfig, LlmProvider } from './llmClient';
+export {
+  getLlmProvider,
+  getRegisteredProviderIds,
+  listLlmProviders,
+  registerLlmProvider,
+  type CreateLlmClientConfig,
+  type LlmKeyVerification,
+  type LlmProviderDescriptor,
+} from './registry';
 
 export class SkillRegistry {
   private skills: Skill[] = [];

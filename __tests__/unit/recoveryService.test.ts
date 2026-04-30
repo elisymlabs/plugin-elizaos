@@ -197,6 +197,7 @@ describe('RecoveryService', () => {
       capabilities: ['summarization'],
       priceSubunits: 1_000_000n,
       asset: NATIVE_SOL,
+      mode: 'llm',
       async execute(input) {
         return { data: `skill-summary-of:${input.data.length}` };
       },
@@ -205,7 +206,9 @@ describe('RecoveryService', () => {
     registry.register(fakeSkill);
     const state = getState(runtime);
     state.skills = registry;
-    state.skillLlm = {} as unknown as LlmClient;
+    const stubLlm = {} as unknown as LlmClient;
+    state.defaultSkillLlm = stubLlm;
+    state.getLlm = () => stubLlm;
 
     const entry = providerEntry({ state: 'paid', resultContent: undefined });
     await recordTransition(runtime, entry);
@@ -238,7 +241,7 @@ describe('RecoveryService', () => {
     expect(latest.get('job-p')?.state).toBe('delivered');
   });
 
-  it('re-execute fails the job when a skill matches but skillLlm is not configured', async () => {
+  it('re-execute fails the job when a skill matches but no LLM client is configured', async () => {
     const runtime = makeRuntime();
     initState(runtime, stubConfig());
     const fakeSkill: Skill = {
@@ -247,6 +250,7 @@ describe('RecoveryService', () => {
       capabilities: ['summarization'],
       priceSubunits: 1_000_000n,
       asset: NATIVE_SOL,
+      mode: 'llm',
       async execute() {
         throw new Error('should not reach skill.execute');
       },
@@ -281,6 +285,6 @@ describe('RecoveryService', () => {
     const latest = await loadLatest(runtime, 'provider');
     const current = latest.get('job-p');
     expect(current?.state).toBe('failed');
-    expect(current?.error).toContain('ANTHROPIC_API_KEY');
+    expect(current?.error).toContain('no LLM client is configured');
   });
 });

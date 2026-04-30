@@ -5,7 +5,7 @@
     "": {
       "name": "@elisym/plugin-elizaos-elisym",
       "dependencies": {
-        "@elisym/sdk": "~0.11.0",
+        "@elisym/sdk": "~0.15.0",
         "@solana/kit": "~6.8.0",
         "bs58": "~6.0.0",
         "decimal.js-light": "~2.5.0",
@@ -32,7 +32,7 @@
   "packages": {
     "@cfworker/json-schema": ["@cfworker/json-schema@4.1.1", "", {}, "sha512-gAmrUZSGtKc3AiBL71iNWxDsyUC5uMaKKGdvzYsBoTW/xi42JQHl7eKV2OYzCUqvc+D2RCcf7EXY2iCyFIk6og=="],
 
-    "@elisym/sdk": ["@elisym/sdk@0.11.0", "", { "dependencies": { "yaml": "~2.8.3", "zod": "~3.25.0" }, "peerDependencies": { "@solana-program/memo": "~0.11.0", "@solana-program/system": "~0.12.0", "@solana-program/token": "~0.5.0", "@solana/kit": "~6.8.0", "decimal.js-light": "~2.5.0", "nostr-tools": "~2.23.0" } }, "sha512-7igpLgCzudzVGJhD+B30Elf5ZlgylJlmr03g5T3BHpiaxj+4yPZgM8vA9d4mA1qx8MONpsl0AhGgFVbx3g689A=="],
+    "@elisym/sdk": ["@elisym/sdk@0.15.0", "", { "dependencies": { "yaml": "~2.8.3", "zod": "~3.25.0" }, "peerDependencies": { "@solana-program/memo": "~0.11.0", "@solana-program/system": "~0.12.0", "@solana-program/token": "~0.5.0", "@solana/kit": "~6.8.0", "decimal.js-light": "~2.5.0", "nostr-tools": "~2.23.0" } }, "sha512-eBqJg2bsN5TC/0Fx1uUf44Zm6CgeeXUbMcAYkLNpkLN7cEBrXeOKQ8rXF8duJzC3RPQusoglndbTuzGW9Obabg=="],
 
     "@elizaos/core": ["@elizaos/core@1.7.2", "", { "dependencies": { "@langchain/core": "^1.0.0", "@langchain/textsplitters": "^1.0.0", "adze": "^2.2.5", "crypto-browserify": "^3.12.0", "dotenv": "^17.2.3", "fast-redact": "^3.5.0", "glob": "^13.0.0", "handlebars": "^4.7.8", "pdfjs-dist": "^5.2.133", "unique-names-generator": "^4.7.1", "uuid": "^13.0.0", "zod": "^4.3.5" } }, "sha512-NUw+YIXTejCCB07jevJ6cTbd/FKTqVoPwDrMMuBcjHeM+9UlQKFadDJooWEUREf37WS4KBegwLUOnr9H9CXpcw=="],
 

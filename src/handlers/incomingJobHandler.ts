@@ -5,6 +5,7 @@ import {
   type PaymentRequestData,
   type ProtocolConfigInput,
 } from '@elisym/sdk';
+import { LlmHealthError } from '@elisym/sdk/llm-health';
 import type { IAgentRuntime } from '@elizaos/core';
 import { ModelType } from '@elizaos/core';
 import type { Event } from 'nostr-tools';
@@ -15,6 +16,7 @@ import { fetchProtocolConfig, paymentStrategyInstance } from '../lib/paymentStra
 import { findProductByCapability, resolveProducts } from '../lib/providerProducts';
 import { RateLimiter } from '../lib/rateLimiter';
 import type { WalletService } from '../services/WalletService';
+import { resolveTripleForOverride } from '../skills/resolver';
 import { getState } from '../state';
 
 const incomingRateLimiter = new RateLimiter();
@@ -89,15 +91,24 @@ async function routeCapability(
 
   const skill = state.skills?.findByCapability(capability);
   if (skill) {
-    if (!state.skillLlm) {
-      throw new Error(
-        'Skill matched but no LLM client is configured. Set ANTHROPIC_API_KEY in agent settings.',
-      );
+    let llmClient = state.defaultSkillLlm;
+    if (skill.mode === 'llm') {
+      // Trust getLlm's result: it already substitutes the default client for
+      // undefined / maxTokens-only overrides. A miss here means an explicit
+      // provider/model override could not be built (e.g. that provider's key
+      // is unset) - fail loudly rather than silently swap providers.
+      llmClient = state.getLlm?.(skill.llmOverride);
+      if (!llmClient) {
+        throw new Error(
+          'Skill matched but no LLM client is configured for the requested provider/model. Set the matching API key (ANTHROPIC_API_KEY / OPENAI_API_KEY) in agent settings.',
+        );
+      }
     }
     const result = await skill.execute(
       { data: input, inputType: 'text/plain', tags: [capability], jobId: jobEventId },
       {
-        llm: state.skillLlm,
+        llm: llmClient,
+        getLlm: state.getLlm,
         agentName: runtime.character?.name ?? 'elisym-provider',
         agentDescription: capability,
         signal,
@@ -248,6 +259,47 @@ export async function handleIncomingJob(input: HandleIncomingJobInput): Promise<
 
   const ledgerBase = baseLedger(event, capability, product.priceSubunits, assetKey(product.asset));
   const rawEventJson = JSON.stringify(event);
+
+  // Preflight: refuse LLM jobs BEFORE asking the customer to pay. Two gates:
+  // (a) no LLM client is wired at all (e.g. operator forgot to set
+  // ANTHROPIC_API_KEY), and (b) the cached deep-verification on the
+  // (provider, model) pair has gone invalid / billing-exhausted since
+  // startup. Both return generic feedback to avoid leaking billing status.
+  const matchedSkill = state.skills?.findByCapability(capability);
+  if (matchedSkill && matchedSkill.mode === 'llm') {
+    const llmClient = state.getLlm?.(matchedSkill.llmOverride);
+    if (!llmClient) {
+      logger.warn(
+        { jobId: event.id, capability },
+        'LLM skill matched but no LLM client is configured; refusing before payment-required',
+      );
+      await client.marketplace.submitErrorFeedback(
+        identity,
+        event,
+        'Service temporarily unavailable, try again later',
+      );
+      return;
+    }
+    const triple = resolveTripleForOverride(matchedSkill.llmOverride, state.agentDefaultLlm);
+    if (state.llmHealthMonitor && triple) {
+      try {
+        await state.llmHealthMonitor.assertReady(triple.provider, triple.model);
+      } catch (error) {
+        const detail = error instanceof Error ? error.message : String(error);
+        const reason = error instanceof LlmHealthError ? error.reason : 'unavailable';
+        logger.warn(
+          { jobId: event.id, provider: triple.provider, model: triple.model, reason, detail },
+          'LLM health gate refused job before payment-required',
+        );
+        await client.marketplace.submitErrorFeedback(
+          identity,
+          event,
+          'Service temporarily unavailable, try again later',
+        );
+        return;
+      }
+    }
+  }
 
   try {
     const protocolConfig = await fetchProtocolConfig(wallet.rpc, config.network);

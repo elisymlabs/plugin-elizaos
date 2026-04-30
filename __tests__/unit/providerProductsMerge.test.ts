@@ -16,6 +16,7 @@ function fakeSkill(
     capabilities,
     priceSubunits,
     asset,
+    mode: 'llm',
     async execute() {
       return { data: '' };
     },

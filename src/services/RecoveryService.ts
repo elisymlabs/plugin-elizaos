@@ -287,12 +287,20 @@ export class RecoveryService extends Service {
 
       const skill = state.skills?.findByCapability(entry.capability);
       if (skill) {
-        if (!state.skillLlm) {
-          await this.markFailed(
-            entry,
-            'Skill matched during recovery but no LLM client is configured (ANTHROPIC_API_KEY missing)',
-          );
-          return undefined;
+        let llmClient = state.defaultSkillLlm;
+        if (skill.mode === 'llm') {
+          // See incomingJobHandler.routeCapability: a miss from getLlm means
+          // the skill's explicit provider/model override could not be built.
+          // Don't fall back to the default client - that would re-execute the
+          // job against a different provider than the skill asked for.
+          llmClient = state.getLlm?.(skill.llmOverride);
+          if (!llmClient) {
+            await this.markFailed(
+              entry,
+              'Skill matched during recovery but no LLM client is configured for the requested provider/model (set the matching ANTHROPIC_API_KEY or OPENAI_API_KEY)',
+            );
+            return undefined;
+          }
         }
         const controller = new AbortController();
         const poll = setInterval(() => {
@@ -309,7 +317,8 @@ export class RecoveryService extends Service {
               jobId: entry.jobEventId,
             },
             {
-              llm: state.skillLlm,
+              llm: llmClient,
+              getLlm: state.getLlm,
               agentName: this.runtime.character?.name ?? 'elisym-provider',
               agentDescription: entry.capability,
               signal: controller.signal,

@@ -5,6 +5,7 @@ import {
   type ElisymIdentity,
   type SubCloser,
 } from '@elisym/sdk';
+import { startLlmHeartbeat } from '@elisym/sdk/llm-health';
 import { Service, type IAgentRuntime, type ServiceTypeName } from '@elizaos/core';
 import type { Event, Filter } from 'nostr-tools';
 import type { LimitFunction } from 'p-limit';
@@ -14,7 +15,8 @@ import type { ElisymConfig, ProviderProduct } from '../environment';
 import { handleIncomingJob } from '../handlers/incomingJobHandler';
 import { logger } from '../lib/logger';
 import { resolveAgentMeta, resolveProducts } from '../lib/providerProducts';
-import { SkillRegistry, createAnthropicClient, loadSkillsFromDir } from '../skills';
+import { SkillRegistry, getLlmProvider, loadSkillsFromDir } from '../skills';
+import { buildSkillLlmResolution, type AgentDefaultLlm } from '../skills/resolver';
 import { getState } from '../state';
 import type { ElisymService } from './ElisymService';
 
@@ -27,6 +29,7 @@ interface ProductCard {
   name: string;
   description: string;
   capabilities: string[];
+  static?: true;
   payment: {
     chain: 'solana';
     network: ElisymConfig['network'];
@@ -92,21 +95,11 @@ export class ProviderService extends Service {
             dir: config.providerSkillsDir,
             count: loaded.length,
             skills: loaded.map((skill) => skill.name),
+            modes: loaded.map((skill) => skill.mode),
           },
           'loaded skills from directory',
         );
-        const anthropicKey = this.runtime.getSetting?.('ANTHROPIC_API_KEY');
-        if (typeof anthropicKey === 'string' && anthropicKey.length > 0) {
-          const modelSetting = this.runtime.getSetting?.('ANTHROPIC_LARGE_MODEL');
-          pluginState.skillLlm = createAnthropicClient({
-            apiKey: anthropicKey,
-            model: typeof modelSetting === 'string' ? modelSetting : undefined,
-          });
-        } else {
-          logger.warn(
-            'skills loaded but ANTHROPIC_API_KEY is not set; skill routing will fail when a job arrives',
-          );
-        }
+        await this.armSkillLlms(loaded);
       } else {
         logger.warn({ dir: config.providerSkillsDir }, 'skills directory had no loadable skills');
       }
@@ -117,7 +110,7 @@ export class ProviderService extends Service {
     if (products.length === 0) {
       throw new Error('Provider mode requires at least one product');
     }
-    const cards = products.map((product) => buildCard(product, address, config.network));
+    const cards = products.map((product) => buildCard(product, address, config.network, skillList));
 
     for (const card of cards) {
       try {
@@ -130,6 +123,7 @@ export class ProviderService extends Service {
             priceSubunits: card.payment.job_price,
             token: card.payment.token,
             symbol: card.payment.symbol,
+            static: card.static === true,
           },
           'provider capability card published',
         );
@@ -154,6 +148,96 @@ export class ProviderService extends Service {
       logger.info('pool reset observed; re-subscribing to job requests');
       this.openJobSubscription(client, identity, limit);
     });
+  }
+
+  private async armSkillLlms(skills: readonly import('@elisym/sdk/skills').Skill[]): Promise<void> {
+    const pluginState = getState(this.runtime);
+    const llmSkills = skills.filter((skill) => skill.mode === 'llm');
+    if (llmSkills.length === 0) {
+      logger.info('no LLM skills loaded; skipping LLM key check');
+      return;
+    }
+
+    const apiKeys = this.collectApiKeys(llmSkills);
+    const agentDefault = this.resolveAgentDefaultLlm(apiKeys);
+
+    const { resolution, errors } = await buildSkillLlmResolution({
+      skills: llmSkills,
+      agentDefault,
+      apiKeys,
+    });
+
+    for (const message of errors) {
+      logger.warn({ message }, 'LLM resolver reported a problem');
+    }
+
+    pluginState.agentDefaultLlm = agentDefault;
+    pluginState.defaultSkillLlm = resolution.defaultClient;
+    pluginState.getLlm = resolution.getLlm;
+    pluginState.llmHealthMonitor = resolution.monitor;
+
+    pluginState.llmHeartbeat = startLlmHeartbeat({
+      monitor: resolution.monitor,
+      log: (msg: string) => logger.info({ event: 'llm_heartbeat' }, msg),
+    });
+    logger.info('LLM health monitor armed; heartbeat started');
+  }
+
+  /**
+   * Walk the loaded LLM skills, collect the unique providers they reference
+   * (via `llmOverride.provider` or fall back to the agent default), and pull
+   * the matching API key from runtime settings / env.
+   */
+  private collectApiKeys(
+    skills: readonly import('@elisym/sdk/skills').Skill[],
+  ): Map<string, string> {
+    const keys = new Map<string, string>();
+    const providers = new Set<string>();
+    for (const skill of skills) {
+      if (skill.llmOverride?.provider) {
+        providers.add(skill.llmOverride.provider);
+      }
+    }
+    // Always probe Anthropic/OpenAI envs so a skill without an override but
+    // with the agent default works out of the box.
+    providers.add('anthropic');
+    providers.add('openai');
+
+    for (const provider of providers) {
+      const descriptor = getLlmProvider(provider);
+      if (!descriptor) {
+        continue;
+      }
+      const value = this.runtime.getSetting?.(descriptor.envVar);
+      if (typeof value === 'string' && value.length > 0) {
+        keys.set(provider, value);
+      }
+    }
+    return keys;
+  }
+
+  /**
+   * Pick the agent-level default LLM. Anthropic is preferred when its key is
+   * set (back-compat with the previous behaviour); otherwise fall back to the
+   * first provider whose key is configured.
+   */
+  private resolveAgentDefaultLlm(
+    apiKeys: ReadonlyMap<string, string>,
+  ): AgentDefaultLlm | undefined {
+    const anthropicKey = apiKeys.get('anthropic');
+    if (anthropicKey) {
+      const modelSetting = this.runtime.getSetting?.('ANTHROPIC_LARGE_MODEL');
+      return {
+        provider: 'anthropic',
+        model:
+          typeof modelSetting === 'string' && modelSetting.length > 0 ? modelSetting : undefined,
+      };
+    }
+    const openaiKey = apiKeys.get('openai');
+    if (openaiKey) {
+      return { provider: 'openai' };
+    }
+    return undefined;
   }
 
   private openJobSubscription(
@@ -233,8 +317,13 @@ export class ProviderService extends Service {
     }
     try {
       const pluginState = getState(this.runtime);
+      pluginState.llmHeartbeat?.stop();
+      pluginState.llmHeartbeat = undefined;
       pluginState.skills = undefined;
-      pluginState.skillLlm = undefined;
+      pluginState.defaultSkillLlm = undefined;
+      pluginState.getLlm = undefined;
+      pluginState.llmHealthMonitor = undefined;
+      pluginState.agentDefaultLlm = undefined;
     } catch {
       // state not initialized - nothing to clear
     }
@@ -265,11 +354,17 @@ function buildCard(
   product: ProviderProduct,
   address: string,
   network: ElisymConfig['network'],
+  skills: readonly import('@elisym/sdk/skills').Skill[],
 ): ProductCard {
+  // Match the skill that produced this product (by name) to surface its
+  // `mode`. Static modes hint the webapp to hide its input box.
+  const matchingSkill = skills.find((skill) => skill.name === product.name);
+  const isStatic = matchingSkill?.mode === 'static-file' || matchingSkill?.mode === 'static-script';
   return {
     name: product.name,
     description: product.description,
     capabilities: [...product.capabilities],
+    ...(isStatic ? { static: true as const } : {}),
     payment: {
       chain: 'solana',
       network,
